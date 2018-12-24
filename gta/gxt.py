@@ -23,7 +23,7 @@ class VC:
         for entry in TKey:
             key = entry[1]
             value = TDat[entry[0]:].decode('utf-16').split('\x00', 1) [0]
-            Entries.append( (key.rstrip(b'\x00').decode(), value) ) # TODO: charmap
+            Entries.append( (key.split(b'\x00')[0].decode(), value) ) # TODO: charmap
         
         return Entries
 
@@ -93,6 +93,6 @@ def _parseTables(stream):
         
     for i in range(int(size / 12)): # TABL entry size - 12
         rawName, offset = struct.unpack('8sI', stream.read(12))
-        Tables.append( (rawName.rstrip(b'\0').decode(), offset) )
+        Tables.append( (rawName.split(b'\x00')[0].decode(), offset) )
     
     return Tables
