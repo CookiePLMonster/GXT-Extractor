@@ -1,6 +1,32 @@
 import struct
 import os
 
+class VC:    
+    def hasTables(self):
+        return True
+
+    def parseTables(self, stream):
+        return _parseTables(stream)
+
+    def parseTKeyTDat(self, stream):
+        size = findBlock(stream, 'TKEY')
+        
+        TKey = []
+        for i in range(int(size / 12)): # TKEY entry size - 12
+            TKey.append( struct.unpack('I8s', stream.read(12)) )
+        
+        datSize = findBlock(stream, 'TDAT')
+        TDat = stream.read(datSize)
+
+        Entries = []
+
+        for entry in TKey:
+            key = entry[1]
+            value = TDat[entry[0]:].decode('utf-16').split('\x00', 1) [0]
+            Entries.append( (key.rstrip(b'\x00').decode(), value) ) # TODO: charmap
+        
+        return Entries
+
 class SA:    
     def hasTables(self):
         return True
@@ -21,9 +47,10 @@ class SA:
         Entries = []
 
         for entry in TKey:
-            key = entry[1]
-            value = TDat[entry[0]:].split(b'\x00', 1) [0]
-            Entries.append( (key, value.decode('cp1252')) ) # TODO: charmap
+            key = f'0x{entry[1]:08X}'
+            value = TDat[entry[0]:].decode('cp1252').split('\x00', 1) [0]
+
+            Entries.append( (key, value) ) # TODO: charmap
         
         return Entries
 
@@ -53,6 +80,8 @@ def getVersion(stream):
     return None
 
 def getReader(version):
+    if version == 'vc':
+        return VC()
     if version == 'sa':
         return SA()
     return None

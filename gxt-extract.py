@@ -20,7 +20,7 @@ def readOutTable(gxt, reader, name):
 
     with open(os.path.join(outDirName, name, name + '.txt'), 'w', encoding='utf-8') as f:
         for text in reader.parseTKeyTDat(gxt):
-            f.write( f'0x{text[0]:08X}' + '\t' + text[1] + '\n' )
+            f.write( text[0] + '\t' + text[1] + '\n' )
 
 
 # TODO: Parse arguments
