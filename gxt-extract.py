@@ -1,5 +1,4 @@
 import sys
-import struct
 import os
 import errno
 import gta.gxt
