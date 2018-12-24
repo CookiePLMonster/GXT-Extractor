@@ -40,3 +40,8 @@ with open(args[0], 'rb') as gxt:
         Tables = gxtReader.parseTables(gxt)
 
     readOutTable(gxt, gxtReader, 'MAIN')
+
+    if Tables:
+        for t in Tables[1:]:
+            gxt.seek(t[1])
+            readOutTable(gxt, gxtReader, t[0])
