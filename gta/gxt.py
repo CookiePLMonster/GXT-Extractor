@@ -27,7 +27,10 @@ class VC:
         
         return Entries
 
-class SA:    
+class SA:
+    def __init__(self, encoding):
+        self.encoding = encoding
+
     def hasTables(self):
         return True
 
@@ -48,7 +51,7 @@ class SA:
 
         for entry in TKey:
             key = f'0x{entry[1]:08X}'
-            value = TDat[entry[0]:].decode('cp1252').split('\x00', 1) [0]
+            value = TDat[entry[0]:].decode(self.encoding).split('\x00', 1) [0]
 
             Entries.append( (key, value) ) # TODO: charmap
         
@@ -83,7 +86,9 @@ def getReader(version):
     if version == 'vc':
         return VC()
     if version == 'sa':
-        return SA()
+        return SA('cp1252')
+    if version == 'sa-mobile':
+        return SA('utf-16')
     return None
 
 # Internal functions
