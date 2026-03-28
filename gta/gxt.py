@@ -13,7 +13,7 @@ class VC:
         
         TKey = []
         for i in range(int(size / 12)): # TKEY entry size - 12
-            TKey.append( struct.unpack('I8s', stream.read(12)) )
+            TKey.append( struct.unpack('<I8s', stream.read(12)) )
         
         datSize = findBlock(stream, 'TDAT')
         TDat = stream.read(datSize)
@@ -42,7 +42,7 @@ class SA:
         
         TKey = []
         for i in range(int(size / 8)): # TKEY entry size - 8
-            TKey.append( struct.unpack('II', stream.read(8)) )
+            TKey.append( struct.unpack('<II', stream.read(8)) )
         
         datSize = findBlock(stream, 'TDAT')
         TDat = stream.read(datSize)
@@ -62,7 +62,7 @@ def findBlock(stream, block):
     while stream.peek(4) [:4] != block.encode():
         stream.seek(1, os.SEEK_CUR)
 
-    _, size = struct.unpack('4sI', stream.read(8))
+    _, size = struct.unpack('<4sI', stream.read(8))
 
     return size
 
@@ -70,7 +70,7 @@ def getVersion(stream):
     bytes = stream.peek(8) [:8]
 
     # SA
-    word1, word2 = struct.unpack('HH', bytes[:4])
+    word1, word2 = struct.unpack('<HH', bytes[:4])
     if word1 == 4 and bytes[4:] == 'TABL'.encode():
         if word2 == 8:
             return 'sa'
@@ -97,7 +97,7 @@ def _parseTables(stream):
     Tables = []
         
     for i in range(int(size / 12)): # TABL entry size - 12
-        rawName, offset = struct.unpack('8sI', stream.read(12))
+        rawName, offset = struct.unpack('<8sI', stream.read(12))
         Tables.append( (rawName.split(b'\x00')[0].decode(), offset) )
     
     return Tables
