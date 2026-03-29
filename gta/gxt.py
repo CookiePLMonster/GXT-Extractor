@@ -1,30 +1,40 @@
 import struct
 from collections import OrderedDict
 
-class VC:
+class III:
+    def readData(self, file, charmap):
+        data = OrderedDict()
+        data['MAIN'] = self._readOneTable(file, charmap)
+
+        return data
+
+    def _readOneTable(self, file, charmap):
+        size = _findBlock(file, b'TKEY')
+
+        TKey = []
+        for _ in range(int(size / 12)): # TKEY entry size - 12
+            TKey.append( struct.unpack('<I8s', file.read(12)) )
+
+        datSize = _findBlock(file, b'TDAT')
+        TDat = file.read(datSize)
+
+        tabl_entries = OrderedDict()
+
+        for entry in TKey:
+            key = entry[1]
+            value_data = TDat[entry[0]:].split(b'\x00\x00', 1)[0]
+            value = ''.join(charmap[value_data[i]] for i in range(0, len(value_data), 2))
+            tabl_entries[key.split(b'\x00', 1)[0].decode()] = value
+
+        return tabl_entries
+
+class VC(III):
     def readData(self, file, charmap):
         data = OrderedDict()
         tables = _parseTables(file)
         for table in tables:
             file.seek(table[1])
-            size = _findBlock(file, b'TKEY')
-
-            TKey = []
-            for i in range(int(size / 12)): # TKEY entry size - 12
-                TKey.append( struct.unpack('<I8s', file.read(12)) )
-
-            datSize = _findBlock(file, b'TDAT')
-            TDat = file.read(datSize)
-
-            tabl_entries = OrderedDict()
-
-            for entry in TKey:
-                key = entry[1]
-                value_data = TDat[entry[0]:].split(b'\x00\x00', 1)[0]
-                value = ''.join(charmap[value_data[i]] for i in range(0, len(value_data), 2))
-                tabl_entries[key.split(b'\x00', 1)[0].decode()] = value
-
-            data[table[0]] = tabl_entries
+            data[table[0]] = self._readOneTable(file, charmap)
 
         return data
 
@@ -101,5 +111,7 @@ def _getReader(file):
 
     if bytes[:4] == b'TABL':
         return 'gtavc', VC()
+    elif bytes[:4] == b'TKEY':
+        return 'gtaiii', III()
 
     return 'unknown', None
