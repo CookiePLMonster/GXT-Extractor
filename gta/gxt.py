@@ -1,110 +1,85 @@
 import struct
-import os
+from collections import OrderedDict
 
 class VC:
-    def hasTables(self):
-        return True
+    def readData(self, file, charmap):
+        data = OrderedDict()
+        tables = _parseTables(file)
+        for table in tables:
+            file.seek(table[1])
+            size = _findBlock(file, b'TKEY')
 
-    def parseTables(self, stream):
-        return _parseTables(stream)
+            TKey = []
+            for i in range(int(size / 12)): # TKEY entry size - 12
+                TKey.append( struct.unpack('<I8s', file.read(12)) )
 
-    def parseTKeyTDat(self, stream, charmap):
-        size = findBlock(stream, b'TKEY')
+            datSize = _findBlock(file, b'TDAT')
+            TDat = file.read(datSize)
 
-        TKey = []
-        for i in range(int(size / 12)): # TKEY entry size - 12
-            TKey.append( struct.unpack('<I8s', stream.read(12)) )
+            tabl_entries = OrderedDict()
 
-        datSize = findBlock(stream, b'TDAT')
-        TDat = stream.read(datSize)
+            for entry in TKey:
+                key = entry[1]
+                value_data = TDat[entry[0]:].split(b'\x00\x00', 1)[0]
+                value = ''.join(charmap[value_data[i]] for i in range(0, len(value_data), 2))
+                tabl_entries[key.split(b'\x00', 1)[0].decode()] = value
 
-        Entries = []
+            data[table[0]] = tabl_entries
 
-        for entry in TKey:
-            key = entry[1]
-            value_data = TDat[entry[0]:].split(b'\x00\x00', 1)[0]
-            value = ''.join(charmap[value_data[i]] for i in range(0, len(value_data), 2))
-            Entries.append( (key.split(b'\x00', 1)[0].decode(), value) )
-
-        return Entries
+        return data
 
 class SA:
     def __init__(self, char_size):
         self.char_size = char_size
         self.term_char = b'\x00' * char_size
 
-    def hasTables(self):
-        return True
+    def readData(self, file, charmap):
+        data = OrderedDict()
+        tables = _parseTables(file)
+        for table in tables:
+            file.seek(table[1])
+            size = _findBlock(file, b'TKEY')
 
-    def parseTables(self, stream):
-        return _parseTables(stream)
+            TKey = []
+            for _ in range(int(size / 8)): # TKEY entry size - 8
+                TKey.append( struct.unpack('<II', file.read(8)) )
 
-    def parseTKeyTDat(self, stream, charmap):
-        size = findBlock(stream, b'TKEY')
+            datSize = _findBlock(file, b'TDAT')
+            TDat = file.read(datSize)
 
-        TKey = []
-        for i in range(int(size / 8)): # TKEY entry size - 8
-            TKey.append( struct.unpack('<II', stream.read(8)) )
+            tabl_entries = OrderedDict()
 
-        datSize = findBlock(stream, b'TDAT')
-        TDat = stream.read(datSize)
+            for entry in TKey:
+                key = f'0x{entry[1]:08X}'
+                value_data = TDat[entry[0]:].split(self.term_char, 1)[0]
+                value = ''.join(charmap[value_data[i]] for i in range(0, len(value_data), self.char_size))
+                tabl_entries[key] = value
 
-        Entries = []
+            data[table[0]] = tabl_entries
 
-        for entry in TKey:
-            key = f'0x{entry[1]:08X}'
-            value_data = TDat[entry[0]:].split(self.term_char, 1)[0]
-            value = ''.join(charmap[value_data[i]] for i in range(0, len(value_data), self.char_size))
+        return data
 
-            Entries.append( (key, value) )
+def readGxtFile(gxt_path, charmap_path):
+    charmap = ['\x00'] * 32
+    with open(charmap_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            charmap.extend(line.rstrip('\r\n').split('\t'))
 
-        return Entries
+    with open(gxt_path, 'rb') as gxt:
+        gxt_version, reader = _getReader(gxt)
+        return gxt_version, reader.readData(gxt, charmap)
 
-
-def findBlock(stream, block):
+# Internal functions
+def _findBlock(stream, block):
     while stream.peek(4) [:4] != block:
-        stream.seek(1, os.SEEK_CUR)
+        stream.read(1)
 
     _, size = struct.unpack('<4sI', stream.read(8))
 
     return size
 
-def getVersion(stream):
-    bytes = stream.peek(8) [:8]
-
-    # SA
-    word1, word2 = struct.unpack('<HH', bytes[:4])
-    if word1 == 4 and bytes[4:] == b'TABL':
-        if word2 == 8:
-            return 'sa'
-        if word2 == 16:
-            return 'sa-mobile'
-
-    if bytes[:4] == b'TABL':
-        return 'vc'
-
-    return None
-
-def getReader(version):
-    if version == 'vc':
-        return VC()
-    if version == 'sa':
-        return SA(1)
-    if version == 'sa-mobile':
-        return SA(2)
-    return None
-
-def readCharmap(path):
-    entries = ['\x00'] * 32
-    with open(path, 'r', encoding='utf-8') as f:
-        for line in f:
-            entries.extend(line.rstrip('\r\n').split('\t'))
-
-    return entries
-
-# Internal functions
 def _parseTables(stream):
-    size = findBlock(stream, b'TABL')
+    size = _findBlock(stream, b'TABL')
     Tables = []
 
     for i in range(int(size / 12)): # TABL entry size - 12
@@ -112,3 +87,19 @@ def _parseTables(stream):
         Tables.append( (rawName.split(b'\x00', 1)[0].decode(), offset) )
 
     return Tables
+
+def _getReader(file):
+    bytes = file.peek(8) [:8]
+
+    # SA
+    word1, word2 = struct.unpack('<HH', bytes[:4])
+    if word1 == 4 and bytes[4:] == b'TABL':
+        if word2 == 8:
+            return 'gtasa', SA(1)
+        if word2 == 16:
+            return 'gtasa-mobile', SA(2)
+
+    if bytes[:4] == b'TABL':
+        return 'gtavc', VC()
+
+    return 'unknown', None

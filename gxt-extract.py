@@ -14,36 +14,17 @@ parser.add_argument('-c', '--charmap', default='charmap.txt', help='path to the 
 
 args = parser.parse_args()
 
-outDirName = os.path.splitext(args.gxt)[0]
-def readOutTable(gxt, charmap, reader, name):
-    with open(os.path.join(outDirName, name + '.txt'), 'w', encoding='utf-8') as f:
-        for text in reader.parseTKeyTDat(gxt, charmap):
-            f.write( text[0] + '\t' + text[1] + '\n' )
+gxt_version, gxt_data = gta.gxt.readGxtFile(args.gxt, args.charmap)
+if not gxt_data:
+    eprint('Unknown GXT version!')
+    exit(1)
 
-with open(args.gxt, 'rb') as gxt:
-    gxtversion = gta.gxt.getVersion(gxt)
+print(f"Detected GXT version: {gxt_version}")
 
-    if not gxtversion:
-        eprint('Unknown GXT version!')
-        exit(1)
+output_dir = os.path.splitext(args.gxt)[0]
+os.makedirs(output_dir, exist_ok=True)
 
-    print(f"Detected GXT version: {gxtversion}")
-
-    charmap = gta.gxt.readCharmap(args.charmap)
-    if not charmap:
-        eprint('Invalid character map! It must be a file with 256 tab-delimited entries')
-        exit(1)
-
-    gxtReader = gta.gxt.getReader(gxtversion)
-
-    Tables = []
-    if gxtReader.hasTables():
-        Tables = gxtReader.parseTables(gxt)
-
-    os.makedirs(outDirName, exist_ok=True)
-    readOutTable(gxt, charmap, gxtReader, 'MAIN')
-
-    if Tables:
-        for t in Tables[1:]:
-            gxt.seek(t[1])
-            readOutTable(gxt, charmap, gxtReader, t[0])
+for table_name, table_data in gxt_data.items():
+    with open(os.path.join(output_dir, table_name + '.txt'), 'w', encoding='utf-8') as f:
+        for key, value in table_data.items():
+            f.write(f'{key}\t{value}\n')
